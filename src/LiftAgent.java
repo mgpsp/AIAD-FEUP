@@ -1,5 +1,9 @@
 import java.awt.Color;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
+import javax.imageio.ImageIO;
 
 import uchicago.src.sim.gui.Drawable;
 import uchicago.src.sim.gui.SimGraphics;
@@ -10,6 +14,8 @@ import sajas.core.behaviours.*;
 import jade.lang.acl.ACLMessage;
 
 public class LiftAgent extends Agent implements Drawable {
+	private BuildingSpace buildingSpace;
+	
 	private int x;
 	private int y;
 	private int currentFloor;
@@ -17,9 +23,13 @@ public class LiftAgent extends Agent implements Drawable {
 	private ArrayList<Task> tasks;
 	
 	private Direction state;
+	private Task currentTask;
+	private boolean goingToOrigin = false;
 	
 	private static int IDNumber = 0;
 	private int ID;
+	
+	BufferedImage image;
 	
 	public LiftAgent(int positionX, int liftVelocity, int positionY) {
 		x = positionX;
@@ -30,6 +40,14 @@ public class LiftAgent extends Agent implements Drawable {
 	    ID = IDNumber;
 	    tasks = new ArrayList<Task>();
 	    state = Direction.STOPPED;
+	    currentTask = null;
+	    
+	    image = null;
+	    try {
+	        image = ImageIO.read(new File("door.jpg"));
+	    } catch (IOException e) {
+	    	System.out.println("ERRO");
+	    }
 	}
 	
 	@Override
@@ -37,7 +55,6 @@ public class LiftAgent extends Agent implements Drawable {
 		System.out.println("Hi! I'm a Lift Agent. My AID is " + getAID().getName());
 
 		addBehaviour(new AnswerRequest(this));
-		addBehaviour(new ExecuteTasks(this));
 	}
 	
 	private class AnswerRequest extends CyclicBehaviour {
@@ -56,19 +73,12 @@ public class LiftAgent extends Agent implements Drawable {
 			case 0:
 				ACLMessage msg = myAgent.receive();
 				if (msg != null && msg.getPerformative() == ACLMessage.CFP) {
-					//System.out.println(getAID().getName()  + " received a request: " + msg.getContent());
 					String[] splited = msg.getContent().split("\\s+");
-					Direction direction;
-					if (splited[1] == "UP")
-						direction = Direction.UP;
-					else
-						direction = Direction.DOWN;
-					task = new Task(Integer.parseInt(splited[0]), direction);
+					task = new Task(Integer.parseInt(splited[0]), Integer.parseInt(splited[1]));
 					int waitingTime = calculateWaitingTime(task);
 					ACLMessage reply = msg.createReply();
 					reply.setPerformative(ACLMessage.PROPOSE);
 					reply.setContent(Integer.toString(waitingTime));
-					//System.out.println("Sending score");
 					myAgent.send(reply);
 					step++;
 				}
@@ -82,8 +92,6 @@ public class LiftAgent extends Agent implements Drawable {
 						System.out.println(getAID().getName() + " will answer the request.");
 						tasks.add(task);
 					}	
-					else
-						System.out.println(getAID().getName() + " will ignore the request.");
 					step = 0;
 				}
 				else
@@ -92,22 +100,46 @@ public class LiftAgent extends Agent implements Drawable {
 		}
 	}
 	
-	private class ExecuteTasks extends CyclicBehaviour {
-		private static final long serialVersionUID = 1L;
-		
-		private Task currentTask;
-		
-		public ExecuteTasks(Agent agent) {
-			super(agent);
-			currentTask = new Task(0, Direction.STOPPED);
-		}
-		
-		@Override
-		public void action() {
-			if (currentTask.getFloor() == currentFloor && tasks.size() > 0) {
-				tasks.remove(0);
-				currentTask = tasks.get(0);
+	public void executeTasks() {
+		if (currentTask == null && tasks.size() > 0) {
+			currentTask = tasks.get(0);
+			goingToOrigin = true;
+			if (currentFloor < currentTask.getOriginFloor())
+				state = Direction.UP;
+			else if (currentFloor > currentTask.getOriginFloor())
+				state = Direction.DOWN;
+			else {
+				goingToOrigin = false;
+				buildingSpace.updateCalls(currentTask, true);
 				state = currentTask.getDirection();
+			}
+		}
+		else if (currentTask != null) {
+			if (currentTask.getOriginFloor() == currentFloor && goingToOrigin) {
+				state = currentTask.getDirection();
+				buildingSpace.updateCalls(currentTask, true);
+				goingToOrigin = false;
+			}
+			else if (currentTask.getDestinationFloor() == currentFloor && !goingToOrigin && state != Direction.STOPPED) {
+				tasks.remove(0);
+				System.out.println(getID() + " answered " + currentTask);
+				if (tasks.size() > 0) {
+					currentTask = tasks.get(0);
+					goingToOrigin = true;
+					if (currentFloor < currentTask.getOriginFloor())
+						state = Direction.UP;
+					else if (currentFloor > currentTask.getOriginFloor())
+						state = Direction.DOWN;
+					else {
+						goingToOrigin = false;
+						buildingSpace.updateCalls(currentTask, true);
+						state = currentTask.getDirection();
+					}
+				}
+				else {
+					state = Direction.STOPPED;
+					currentTask = null;
+				}
 			}
 		}
 	}
@@ -116,17 +148,9 @@ public class LiftAgent extends Agent implements Drawable {
 		x = newX;
 		y = newY;
 	}
-	
-	/*public void setBuilding(BuildingSpace building){
-		this.building = building;
-	}*/
 
 	public String getID(){
 		return "A-" + ID;
-	}
-	
-	public void report(){
-		System.out.println(getID() + " at " + x + ", " + currentFloor);
 	}
 	
 	public int getX(){
@@ -143,6 +167,7 @@ public class LiftAgent extends Agent implements Drawable {
 
 	public void draw(SimGraphics G){
 		G.drawFastRoundRect(Color.blue);
+		//G.drawImageToFit(image);
 	}
 	
 	public void move() {
@@ -155,22 +180,23 @@ public class LiftAgent extends Agent implements Drawable {
 			y++;
 		}
 	}
-
-	/*public void step() {
-		if (state == Direction.UP)
-			currentFloor--;
-		else if (state == Direction.DOWN)
-			currentFloor++;
-	}*/
 	
 	public int calculateWaitingTime(Task task) {
 		int score = 0;
 		int floor = currentFloor;
 		for (Task t : tasks) {
-			score += Math.abs(floor - t.getFloor()) * velocity;
-			floor = t.getFloor();
+			if (t == currentTask && !goingToOrigin)
+				score += Math.abs(floor - t.getDestinationFloor()) * velocity;
+			else
+				score += Math.abs(floor - t.getOriginFloor()) * velocity;
+			if (t != currentTask)
+				floor = t.getOriginFloor();
 		}
-		score += Math.abs(floor - task.getFloor()) * velocity;
+		score += Math.abs(floor - task.getOriginFloor()) * velocity;
 		return score;
+	}
+	
+	public void setBuildingSpace(BuildingSpace buildingSpace){
+		this.buildingSpace = buildingSpace;
 	}
 }

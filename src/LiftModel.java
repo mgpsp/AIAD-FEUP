@@ -18,11 +18,10 @@ import jade.core.ProfileImpl;
 import jade.wrapper.StaleProxyException;
 
 public class LiftModel extends Repast3Launcher {
-	
 	private static final int NUMLIFTS = 4;
 	private static final int NUMFLOORS = 10;
-	private static final int CALLFREQUENCY = 50;
-	private static final int LIFTVELOCITY = 50;
+	private static final int CALLFREQUENCY = 100;
+	private static final int LIFTVELOCITY = 30;
 	
 	private int numLifts = NUMLIFTS;
 	private int numFloors = NUMFLOORS;
@@ -34,6 +33,7 @@ public class LiftModel extends Repast3Launcher {
 	private BuildingSpace buildingSpace;
 	
 	private ArrayList<LiftAgent> lifts;
+	private ArrayList<Door> doors;
 	private BuildingAgent buildingAgent;
 	
 	private DisplaySurface displaySurf;
@@ -51,7 +51,8 @@ public class LiftModel extends Repast3Launcher {
 		super.setup();
 		buildingSpace = null;
 		lifts = new ArrayList<LiftAgent>();
-		buildingAgent = new BuildingAgent();
+		doors = new ArrayList<Door>();
+		buildingAgent = new BuildingAgent(numFloors);
 		if (displaySurf != null){
 			displaySurf.dispose();
 		}
@@ -72,30 +73,40 @@ public class LiftModel extends Repast3Launcher {
 	public void buildModel(){
 		System.out.println("Running BuildModel");
 		
-		buildingSpace = new BuildingSpace(numLifts, numFloors);
-		buildingSpace.addBuildingSpaceToAgent(buildingAgent);
+		buildingAgent.setBuildingSpace(buildingSpace);
+		
+		for (int i = 0; i < numLifts; i++) {
+			for (int j = 0; j < numFloors; j++) {
+				Door door = new Door(i, j);
+				doors.add(door);
+				buildingSpace.addDoor(door);
+			}
+		}
 	}
 
 	public void buildSchedule(){
 		System.out.println("Running BuildSchedule");
 		
-		/*class LiftMove extends BasicAction {
+		class LiftMove extends BasicAction {
 			public void execute() {
-				LiftAgent la = (LiftAgent)lifts.get(0);
-				la.move();
+				for (LiftAgent la : lifts) {
+					la.move();
+					la.executeTasks();
+				}
+				
 				displaySurf.updateDisplay();
-			}
-		}*/
-		
-		class CallLift extends BasicAction {
-			public void execute() {
-				buildingAgent.generateCall(numFloors);
 			}
 		}
 		
-		//getSchedule().scheduleActionAtInterval(100, new LiftMove());
+		class CallLift extends BasicAction {
+			public void execute() {
+				buildingAgent.generateCall();
+			}
+		}
+		
+		getSchedule().scheduleActionAtInterval(liftVelocity, new LiftMove());
 		getSchedule().scheduleActionAtInterval(1, displaySurf, "updateDisplay", Schedule.LAST);
-		getSchedule().scheduleActionAtInterval(200, new CallLift());
+		getSchedule().scheduleActionAtInterval(callFrequency, new CallLift());
 	}
 
 	public void buildDisplay(){
@@ -103,14 +114,20 @@ public class LiftModel extends Repast3Launcher {
 		
 		ColorMap map = new ColorMap();
 		map.mapColor(0, Color.WHITE);
-		map.mapColor(1, Color.RED);
+		map.mapColor(1, Color.RED); // UP
+		map.mapColor(2, Color.DARK_GRAY); // DOWN
+		map.mapColor(3, Color.GREEN); // UPDOWN
 		
 		Value2DDisplay displayBuilding = new Value2DDisplay(buildingSpace.getCurrentBuilding(), map);
 		
 		Object2DDisplay displayAgents = new Object2DDisplay(buildingSpace.getCurrentLifts());
 	    displayAgents.setObjectList(lifts);
+	    
+	    Object2DDisplay displayDoors = new Object2DDisplay(buildingSpace.getCurrentDoors());
+	    displayDoors.setObjectList(doors);
 		
 		displaySurf.addDisplayable(displayBuilding, "Building");
+		displaySurf.addDisplayable(displayDoors, "Doors");
 		displaySurf.addDisplayable(displayAgents, "Lifts");
 		
 		addSimEventListener(displaySurf);
@@ -120,9 +137,10 @@ public class LiftModel extends Repast3Launcher {
 	private void addNewLift(int position){
 		LiftAgent a = new LiftAgent(position, liftVelocity, numFloors - 1);
 		lifts.add(a);
+		buildingSpace.addLift(a);
 		
 		try {
-			mainContainer.acceptNewAgent("S-" + a.getID(), a).start();
+			mainContainer.acceptNewAgent(a.getID(), a).start();
 			buildingAgent.addAID(a.getAID());
 		} catch (StaleProxyException e) {
 			e.printStackTrace();
@@ -177,6 +195,7 @@ public class LiftModel extends Repast3Launcher {
 		Runtime rt = Runtime.instance();
 		Profile p1 = new ProfileImpl();
 		mainContainer = rt.createMainContainer(p1);
+		buildingSpace = new BuildingSpace(numLifts, numFloors);
 		
 		launchAgents();
 	}
@@ -189,10 +208,6 @@ public class LiftModel extends Repast3Launcher {
 			mainContainer.acceptNewAgent("Building Agent", buildingAgent).start();
 		} catch (StaleProxyException e) {
 			e.printStackTrace();
-		}
-		for(int i = 0; i < lifts.size(); i++){
-			LiftAgent la = (LiftAgent)lifts.get(i);
-			la.report();
 		}
 	}
 	

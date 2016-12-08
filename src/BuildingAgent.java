@@ -10,9 +10,11 @@ import jade.lang.acl.ACLMessage;
 public class BuildingAgent extends Agent {
 	private BuildingSpace buildingSpace;
 	private ArrayList<AID> liftsAID;
+	private int numFloors;
 	
-	public BuildingAgent() {
+	public BuildingAgent(int numFloors) {
 		liftsAID = new ArrayList<AID>();
+		this.numFloors = numFloors;
 	}
 	
 	@Override
@@ -37,7 +39,6 @@ public class BuildingAgent extends Agent {
 		public void action() {
 			switch(step) {
 			case 0:
-				//System.out.println("Sending request");
 				ACLMessage msg = new ACLMessage(ACLMessage.CFP);
 				for (AID aid : liftsAID)
 					msg.addReceiver(aid);
@@ -48,8 +49,7 @@ public class BuildingAgent extends Agent {
 			case 1:
 				ACLMessage reply = myAgent.receive();
 				if (reply != null) {
-					//System.out.println("Receiving proposals");
-					System.out.println(getAID().getName()  + " received a message from " +  reply.getSender().getName() + ". The message is: " + reply.getContent());
+					System.out.println(reply.getSender().getName() + " waiting time: " + reply.getContent());
 					int waitingTime = Integer.parseInt(reply.getContent());
 					if (waitingTime < bestWaitingTime) {
 						bestWaitingTime = waitingTime;
@@ -63,17 +63,16 @@ public class BuildingAgent extends Agent {
 					block();
 				break;
 			case 2:
-				//System.out.println("Sending accept/reject");
 				ACLMessage accept = new ACLMessage(ACLMessage.ACCEPT_PROPOSAL);
 				accept.addReceiver(bestLift);
-				accept.setContent("I chose you");
+				accept.setContent("I chose you!");
 				send(accept);
 				ACLMessage reject = new ACLMessage(ACLMessage.REJECT_PROPOSAL);
 				for (AID aid : liftsAID) {
 					if (aid != bestLift)
 						reject.addReceiver(aid);
 				}
-				reject.setContent("I don't chose you");
+				reject.setContent("I don't chose you.");
 				send(reject);
 				step++;
 				break;
@@ -87,27 +86,24 @@ public class BuildingAgent extends Agent {
 		
 	}
 
-	public void setBuilding(BuildingSpace buildingSpace){
+	public void setBuildingSpace(BuildingSpace buildingSpace){
 		this.buildingSpace = buildingSpace;
 	}
 	
-	public void generateCall(int numFloors) {
+	public void generateCall() {
 		Random generator = new Random();
-		int floor = generator.nextInt(numFloors);
-		Direction direction;
-		if (generator.nextInt(2) == 0)
-			direction = Direction.UP;
-		else
-			direction = Direction.DOWN;
-		System.out.println("I'm on floor " + floor + " and I want to go " + direction);
-		//buildingSpace.putCall(floor);
-		requestLift(new Task(floor, direction));
-		
-		/*int rnd = -1;
+		int origFloor = generator.nextInt(numFloors);
+		int destFloor = -1;
 		do {
-			rnd = generator.nextInt(numFloors);
-		} while(rnd == origFloor);
-		int destFloor = rnd;*/
+			destFloor = generator.nextInt(numFloors);
+		} while(destFloor == origFloor);
+		if (origFloor < destFloor)
+			System.out.println("I'm on floor " + origFloor + " and I want to go UP(" + destFloor + ")");
+		else
+			System.out.println("I'm on floor " + origFloor + " and I want to go DOWN(" + destFloor + ")");
+		Task task = new Task(origFloor, destFloor);
+		requestLift(task);
+		buildingSpace.updateCalls(task, false);
 	}
 	
 	public void addAID(AID liftAID) {
