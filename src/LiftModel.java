@@ -1,13 +1,11 @@
-import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Random;
 
 import uchicago.src.sim.engine.BasicAction;
 import uchicago.src.sim.engine.SimInit;
 import uchicago.src.sim.engine.Schedule;
 import uchicago.src.sim.gui.DisplaySurface;
-import uchicago.src.sim.gui.ColorMap;
 import uchicago.src.sim.gui.Object2DDisplay;
-import uchicago.src.sim.gui.Value2DDisplay;
 
 import sajas.sim.repast3.Repast3Launcher;
 import sajas.wrapper.ContainerController;
@@ -20,13 +18,17 @@ import jade.wrapper.StaleProxyException;
 public class LiftModel extends Repast3Launcher {
 	private static final int NUMLIFTS = 4;
 	private static final int NUMFLOORS = 10;
-	private static final int CALLFREQUENCY = 100;
+	private static final int CALLFREQUENCY = 150;
 	private static final int LIFTVELOCITY = 30;
+	private static final int MAXCAPACITY = 10;
+	private static final int STRATEGY = 1;
 	
 	private int numLifts = NUMLIFTS;
 	private int numFloors = NUMFLOORS;
 	private int callFrequency = CALLFREQUENCY;
 	private int liftVelocity = LIFTVELOCITY;
+	private int maxCapacity = MAXCAPACITY;
+	private int strategy = STRATEGY;
 	
 	private ContainerController mainContainer;
 	
@@ -73,11 +75,9 @@ public class LiftModel extends Repast3Launcher {
 	public void buildModel(){
 		System.out.println("Running BuildModel");
 		
-		buildingAgent.setBuildingSpace(buildingSpace);
-		
 		for (int i = 0; i < numLifts; i++) {
 			for (int j = 0; j < numFloors; j++) {
-				Door door = new Door(i, j);
+				Door door = new Door(i, j, numFloors);
 				doors.add(door);
 				buildingSpace.addDoor(door);
 			}
@@ -91,7 +91,20 @@ public class LiftModel extends Repast3Launcher {
 			public void execute() {
 				for (LiftAgent la : lifts) {
 					la.move();
-					la.executeTasks();
+					Task doneTask = la.executeTasks();
+					if (doneTask != null) {
+						for (Door d : doors) {
+							if (doneTask.getOriginFloor() == d.getFloor())
+								d.setState(doneTask.getDirection(), true);
+						}
+					}
+					if (doneTask != null && doneTask.getNumPeople() != 0) {
+						buildingAgent.requestLift(doneTask);
+						for (Door d : doors) {
+							if (doneTask.getOriginFloor() == d.getFloor())
+								d.setState(doneTask.getDirection(), false);
+						}
+					}
 				}
 				
 				displaySurf.updateDisplay();
@@ -100,7 +113,11 @@ public class LiftModel extends Repast3Launcher {
 		
 		class CallLift extends BasicAction {
 			public void execute() {
-				buildingAgent.generateCall();
+				Task task = buildingAgent.generateCall(maxCapacity);
+				for (Door d : doors) {
+					if (task.getOriginFloor() == d.getFloor())
+						d.setState(task.getDirection(), false);
+				}
 			}
 		}
 		
@@ -112,21 +129,12 @@ public class LiftModel extends Repast3Launcher {
 	public void buildDisplay(){
 		System.out.println("Running BuildDisplay");
 		
-		ColorMap map = new ColorMap();
-		map.mapColor(0, Color.WHITE);
-		map.mapColor(1, Color.RED); // UP
-		map.mapColor(2, Color.DARK_GRAY); // DOWN
-		map.mapColor(3, Color.GREEN); // UPDOWN
-		
-		Value2DDisplay displayBuilding = new Value2DDisplay(buildingSpace.getCurrentBuilding(), map);
-		
 		Object2DDisplay displayAgents = new Object2DDisplay(buildingSpace.getCurrentLifts());
 	    displayAgents.setObjectList(lifts);
 	    
 	    Object2DDisplay displayDoors = new Object2DDisplay(buildingSpace.getCurrentDoors());
 	    displayDoors.setObjectList(doors);
 		
-		displaySurf.addDisplayable(displayBuilding, "Building");
 		displaySurf.addDisplayable(displayDoors, "Doors");
 		displaySurf.addDisplayable(displayAgents, "Lifts");
 		
@@ -134,8 +142,8 @@ public class LiftModel extends Repast3Launcher {
 		displaySurf.display();
 	}
 
-	private void addNewLift(int position){
-		LiftAgent a = new LiftAgent(position, liftVelocity, numFloors - 1);
+	private void addNewLift(int position, int capacity){
+		LiftAgent a = new LiftAgent(position, liftVelocity, numFloors - 1, capacity, strategy);
 		lifts.add(a);
 		buildingSpace.addLift(a);
 		
@@ -148,7 +156,7 @@ public class LiftModel extends Repast3Launcher {
 	} 
 	
 	public String[] getInitParam(){
-		String[] initParams = { "NumLifts", "NumFloors", "CallFrequency", "LiftVelocity" };
+		String[] initParams = { "NumLifts", "NumFloors", "CallFrequency", "LiftVelocity", "MaxCapacity", "Strategy" };
 		return initParams;
 	}
 	
@@ -190,6 +198,22 @@ public class LiftModel extends Repast3Launcher {
 		this.liftVelocity = liftVelocity;
 	}
 	
+	public int getMaxCapacity() {
+		return maxCapacity;
+	}
+
+	public void setMaxCapacity(int maxCapacity) {
+		this.maxCapacity = maxCapacity;
+	}
+	
+	public int getStrategy() {
+		return strategy;
+	}
+
+	public void setStrategy(int strategy) {
+		this.strategy = strategy;
+	}
+	
 	@Override
 	protected void launchJADE() {
 		Runtime rt = Runtime.instance();
@@ -201,9 +225,15 @@ public class LiftModel extends Repast3Launcher {
 	}
 	
 	private void launchAgents() {
+		Random generator = new Random();
+		int max = 0;
 		for(int i = 0; i < numLifts; i++){
-			addNewLift(i);
+			int capacity = generator.nextInt(maxCapacity - 1) + 1;
+			if (capacity > max)
+				max = capacity;
+			addNewLift(i, capacity);
 		}
+		setMaxCapacity(max);
 		try {
 			mainContainer.acceptNewAgent("Building Agent", buildingAgent).start();
 		} catch (StaleProxyException e) {

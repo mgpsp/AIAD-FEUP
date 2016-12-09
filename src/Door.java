@@ -7,20 +7,22 @@ import uchicago.src.sim.gui.Drawable;
 import uchicago.src.sim.gui.SimGraphics;
 
 public class Door implements Drawable{
-	private static final String IMGDEFAULT = "imgDefault.jpg";
-	private static final String IMGALLEDUP = "imgCalledUp.jpg";
-	private static final String IMGALLEDDOWN = "imgCalledDown.jpg";
-	private static final String IMGALLEDUPDOWN = "imgCalledUpDown.jpg";
+	private static final String IMGDEFAULT = "lift.png";
+	private static final String IMGALLEDUP = "liftUp.png";
+	private static final String IMGALLEDDOWN = "liftDown.png";
+	private static final String IMGALLEDUPDOWN = "liftUpDown.png";
 	
 	private int x;
 	private int y;
+	private int floor;
 	private Direction state;
 	
 	BufferedImage imgDefault, imgCalledUp, imgCalledDown, imgCalledUpDown;
 	
-	public Door(int x, int y) {
+	public Door(int x, int y, int numFloors) {
 		this.x = x;
 		this.y = y;
+		this.floor = numFloors - y - 1;
 		this.state = Direction.STOPPED;
 		this.imgDefault = this.imgCalledUp = this.imgCalledDown = this.imgCalledUpDown = null;
 		try {
@@ -29,12 +31,37 @@ public class Door implements Drawable{
 			this.imgCalledDown = ImageIO.read(new File(IMGALLEDDOWN));
 			this.imgCalledUpDown = ImageIO.read(new File(IMGALLEDUPDOWN));
 		} catch (IOException e) {
-			System.out.println("Couldn't load elevators image");
+			System.out.println("Couldn't load lift doors image");
 		}
 	}
 	
-	public void setState(Direction state) {
-		this.state = state;
+	public void setState(Direction state, boolean remove) {
+		switch(this.state) {
+		case UP:
+			if (!remove && state == Direction.DOWN)
+				this.state = Direction.UPDOWN;
+			else if (remove)
+				this.state = Direction.STOPPED;
+			break;
+		case DOWN:
+			if (!remove && state == Direction.UP)
+				this.state = Direction.UPDOWN;
+			else if (remove)
+				this.state = Direction.STOPPED;
+			break;
+		case UPDOWN:
+			if (remove && state == Direction.UP)
+				this.state = Direction.DOWN;
+			else if (remove && state == Direction.DOWN)
+				this.state = Direction.UP;
+			break;
+		case STOPPED:
+			if (!remove && state == Direction.UP)
+				this.state = Direction.UP;
+			else if (!remove && state == Direction.DOWN)
+				this.state = Direction.DOWN;
+			break;
+		}
 	}
 	
 	@Override
@@ -53,6 +80,10 @@ public class Door implements Drawable{
 			G.drawImageToFit(imgDefault);
 			break;
 		}
+	}
+	
+	public int getFloor() {
+		return floor;
 	}
 	
 	@Override
