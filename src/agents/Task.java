@@ -13,6 +13,8 @@ public class Task implements Serializable {
 	boolean done;
 	private int numCalls;
 	
+	private double callTime;
+	
 	public Task(int originFloor, ArrayList<Integer> destinationFloor, ArrayList<Integer> numPeople) {
 		this.originFloor = originFloor;
 		this.destinationFloor = new ArrayList<Integer>();
@@ -92,5 +94,13 @@ public class Task implements Serializable {
 	
 	public int getNumCalls() {
 		return numCalls;
+	}
+
+	public double getCallTime() {
+		return callTime;
+	}
+
+	public void setCallTime(double waitTime) {
+		this.callTime = waitTime;
 	}
 }

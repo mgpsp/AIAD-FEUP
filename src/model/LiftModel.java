@@ -13,6 +13,8 @@ import statistics.Statistics;
 import uchicago.src.sim.engine.BasicAction;
 import uchicago.src.sim.engine.SimInit;
 import uchicago.src.sim.engine.Schedule;
+import uchicago.src.sim.engine.SimEvent;
+import uchicago.src.sim.engine.SimEventListener;
 import uchicago.src.sim.gui.DisplaySurface;
 import uchicago.src.sim.gui.Object2DDisplay;
 
@@ -27,7 +29,7 @@ import jade.wrapper.StaleProxyException;
 public class LiftModel extends Repast3Launcher {
 	private static final int NUMLIFTS = 4;
 	private static final int NUMFLOORS = 10;
-	private static final int CALLFREQUENCY = 150;
+	private static final int CALLFREQUENCY = 100;
 	private static final int LIFTVELOCITY = 30;
 	private static final int MAXCAPACITY = 10;
 	private static final int STRATEGY = 1;
@@ -55,6 +57,13 @@ public class LiftModel extends Repast3Launcher {
 	
 	public LiftModel() {
 		super();
+		
+		this.addSimEventListener(new SimEventListener() {
+			public void simEventPerformed(SimEvent evt) {
+				if (evt.getId() == SimEvent.PAUSE_EVENT || evt.getId() == SimEvent.STOP_EVENT)
+						statistics.printStatistics();
+			}
+		});
 	}
 	
 	public String getName() {
@@ -68,7 +77,7 @@ public class LiftModel extends Repast3Launcher {
 		lifts = new ArrayList<LiftAgent>();
 		doors = new ArrayList<Door>();
 		newCalls = new ArrayList<Task>();
-		statistics = new Statistics();
+		statistics = new Statistics(numLifts);
 		buildingAgent = new BuildingAgent(numFloors);
 		statistics.addStatisticsToBuilding(buildingAgent);
 		if (displaySurf != null){
@@ -104,6 +113,7 @@ public class LiftModel extends Repast3Launcher {
 		System.out.println("Running BuildSchedule");
 		
 		class LiftMove extends BasicAction {
+			@Override
 			public void execute() {
 				for (LiftAgent la : lifts) {
 					la.move();
@@ -123,6 +133,7 @@ public class LiftModel extends Repast3Launcher {
 		}
 		
 		class CallLift extends BasicAction {
+			@Override
 			public void execute() {
 				Task task;
 				if (newCalls.size() > 0) {
@@ -164,6 +175,7 @@ public class LiftModel extends Repast3Launcher {
 	private void addNewLift(int position, int capacity){
 		LiftAgent a = new LiftAgent(position, liftVelocity, numFloors - 1, capacity, strategy);
 		statistics.addStatisticsToLift(a);
+		a.addSchedule(getSchedule());
 		lifts.add(a);
 		buildingSpace.addLift(a);
 		

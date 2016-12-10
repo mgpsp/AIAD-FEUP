@@ -25,7 +25,6 @@ public class BuildingAgent extends Agent {
 		System.out.println("Hi! I'm the Building Agent. My AID is " + getAID().getName());
 	}
 
-	
 	private class RequestLift extends Behaviour {
 		private static final long serialVersionUID = 1L;
 		
@@ -94,17 +93,27 @@ public class BuildingAgent extends Agent {
 		
 	}
 	
-	public Task generateCall(int maxCapacity) {
-		statistics.incrementCalls();
-		
+	public int generateOriginFloor(int numFloors){
 		Random generator = new Random();
-		int origFloor = generator.nextInt(numFloors);
+		double rnd = generator.nextDouble();
+		
+        double groundRate = 0.4;
+        double floorRate = (1 -  groundRate)/(numFloors);
+ 
+        if (rnd <= groundRate)
+            return 0;
+        else
+            return (int) Math.ceil((rnd - groundRate)/floorRate);
+    }
+	
+	public Task generateCall(int maxCapacity) {
+		int origFloor = generateOriginFloor(numFloors);
+		Random generator = new Random();
 		int destFloor = -1;
 		do {
 			destFloor = generator.nextInt(numFloors);
 		} while(destFloor == origFloor);
 		int numPeople = generator.nextInt(maxCapacity - 1) + 1;
-		//int numPeople = 0;
 		ArrayList<Integer> dests = new ArrayList<Integer>();
 		dests.add(destFloor);
 		ArrayList<Integer> people = new ArrayList<Integer>();
@@ -120,6 +129,7 @@ public class BuildingAgent extends Agent {
 	}
 	
 	public void requestLift(Task request) {
+		statistics.incrementCalls();
 		addBehaviour(new RequestLift(request));
 	}
 	

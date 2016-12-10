@@ -7,6 +7,7 @@ import java.util.ArrayList;
 
 import javax.imageio.ImageIO;
 
+import uchicago.src.sim.engine.Schedule;
 import uchicago.src.sim.gui.Drawable;
 import uchicago.src.sim.gui.SimGraphics;
 
@@ -15,7 +16,6 @@ import sajas.core.behaviours.*;
 
 import jade.lang.acl.ACLMessage;
 import jade.lang.acl.UnreadableException;
-
 import statistics.Statistics;
 
 public class LiftAgent extends Agent implements Drawable {	
@@ -45,6 +45,7 @@ public class LiftAgent extends Agent implements Drawable {
 	
 	int strategy;
 	
+	Schedule sch;
 	private Statistics statistics;
 	
 	public LiftAgent(int positionX, int liftVelocity, int positionY, int capacity, int strategy) {
@@ -114,7 +115,13 @@ public class LiftAgent extends Agent implements Drawable {
 				if (reply != null) {
 					if (reply.getPerformative() == ACLMessage.ACCEPT_PROPOSAL) {
 						System.out.println(getAID().getName() + " will answer request " + task.oneLine());
-						addTask(task);
+						task.setCallTime(sch.getCurrentTime());
+						if (strategy == 2)
+							tasks.add(task);
+						else
+							addTask(task);
+						
+						statistics.addCallToLift(ID - 1);
 					}
 					step = 0;
 				}
@@ -140,6 +147,8 @@ public class LiftAgent extends Agent implements Drawable {
 	public Task executeTasks() {
 		Task doneTask = null;
 		if (tasks.size() > 0) {
+			statistics.addUseTime(ID - 1, velocity);
+			
 			if (currentTask == null) {
 				currentTask = tasks.get(0);
 				goingToOrigin = true;
@@ -149,6 +158,7 @@ public class LiftAgent extends Agent implements Drawable {
 				state = findState(currentTask);
 				// Check if the lift got to the origin floor
 				if (currentTask.getOriginFloor() == currentFloor) {
+					statistics.addWaitTime(sch.getCurrentTime() - currentTask.getCallTime());
 					// Send new request if not all people got in
 					if (currentTask.getNumAllPeople() > capacity) {
 						statistics.incrementCalls();
@@ -190,6 +200,8 @@ public class LiftAgent extends Agent implements Drawable {
 			state = Direction.STOPPED;
 			goingToOrigin = false;
 			currentTask = null;
+			
+			statistics.addNoUseTime(ID - 1, velocity);
 		}
 		return doneTask;
 	}
@@ -236,7 +248,7 @@ public class LiftAgent extends Agent implements Drawable {
 			currentFloor++;
 			y--;
 		}	
-		else if (state == Direction.DOWN && y <= numFloors) {
+		else if (state == Direction.DOWN && y <= numFloors - 1) {
 			currentFloor--;
 			y++;
 		}
@@ -328,5 +340,9 @@ public class LiftAgent extends Agent implements Drawable {
 	
 	public void addStatistics(Statistics st) {
 		this.statistics = st;
+	}
+	
+	public void addSchedule(Schedule s) {
+		this.sch = s;
 	}
 }
