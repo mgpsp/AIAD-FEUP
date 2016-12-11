@@ -28,10 +28,10 @@ import jade.wrapper.StaleProxyException;
 
 public class LiftModel extends Repast3Launcher {
 	private static final int NUMLIFTS = 4;
-	private static final int NUMFLOORS = 4;
+	private static final int NUMFLOORS = 10;
 	private static final int CALLFREQUENCY = 70;
 	private static final int LIFTVELOCITY = 25;
-	private static final int MAXCAPACITY = 15;
+	private static final int MAXCAPACITY = 20;
 	private static final int STRATEGY = 3;
 	
 	private int numLifts = NUMLIFTS;
@@ -112,14 +112,6 @@ public class LiftModel extends Repast3Launcher {
 	public void buildSchedule(){
 		System.out.println("Running BuildSchedule");
 		
-		class StopSim extends BasicAction {
-			@Override
-			public void execute() {
-				if (getSchedule().getCurrentTime() == 10000)
-					stopSimulation();
-			}
-		}
-		
 		class LiftMove extends BasicAction {
 			@Override
 			public void execute() {
@@ -163,7 +155,6 @@ public class LiftModel extends Repast3Launcher {
 		getSchedule().scheduleActionAtInterval(liftVelocity, new LiftMove());
 		getSchedule().scheduleActionAtInterval(1, displaySurf, "updateDisplay", Schedule.LAST);
 		getSchedule().scheduleActionAtInterval(callFrequency, new CallLift());
-		getSchedule().scheduleActionAtInterval(1, new StopSim());
 	}
 
 	public void buildDisplay(){
