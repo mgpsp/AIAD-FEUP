@@ -8,6 +8,7 @@ import sajas.core.behaviours.*;
 import statistics.Statistics;
 import jade.core.AID;
 import jade.lang.acl.ACLMessage;
+import jade.lang.acl.UnreadableException;
 
 public class BuildingAgent extends Agent {
 	private ArrayList<AID> liftsAID;
@@ -57,10 +58,15 @@ public class BuildingAgent extends Agent {
 				ACLMessage reply = myAgent.receive();
 				if (reply != null && reply.getPerformative() == ACLMessage.PROPOSE) {
 					//System.out.println(reply.getSender().getName() + " waiting time for " + request.oneLine() + ": " + reply.getContent());
-					int waitingTime = Integer.parseInt(reply.getContent());
-					if (waitingTime < bestWaitingTime) {
-						bestWaitingTime = waitingTime;
-						bestLift = reply.getSender();
+					int waitingTime;
+					try {
+						waitingTime = (int) reply.getContentObject();
+						if (waitingTime < bestWaitingTime) {
+							bestWaitingTime = waitingTime;
+							bestLift = reply.getSender();
+						}
+					} catch (UnreadableException e) {
+						e.printStackTrace();
 					}
 					replysCnt++;
 					if (replysCnt >= liftsAID.size())
@@ -98,7 +104,7 @@ public class BuildingAgent extends Agent {
 		double rnd = generator.nextDouble();
 		
         double groundRate = 0.4;
-        double floorRate = (1 -  groundRate)/(numFloors);
+        double floorRate = (1 -  groundRate)/(numFloors - 1);
  
         if (rnd <= groundRate)
             return 0;

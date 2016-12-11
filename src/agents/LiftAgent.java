@@ -13,15 +13,14 @@ import uchicago.src.sim.gui.SimGraphics;
 
 import sajas.core.Agent;
 import sajas.core.behaviours.*;
-
 import jade.lang.acl.ACLMessage;
 import jade.lang.acl.UnreadableException;
 import statistics.Statistics;
 
 public class LiftAgent extends Agent implements Drawable {	
-	private static final String IMGSTOPPED = "carStopped.png";
-	private static final String IMGUP = "carUp.png";
-	private static final String IMGDOWN = "carDown.png";
+	private static final String IMGSTOPPED = "img/carStopped.png";
+	private static final String IMGUP = "img/carUp.png";
+	private static final String IMGDOWN = "img/carDown.png";
 	
 	private static final int STOPTIME = 20;
 	
@@ -103,7 +102,11 @@ public class LiftAgent extends Agent implements Drawable {
 					int waitingTime = calculateWaitingTime(task);
 					ACLMessage reply = msg.createReply();
 					reply.setPerformative(ACLMessage.PROPOSE);
-					reply.setContent(Integer.toString(waitingTime));
+					try {
+						reply.setContentObject(waitingTime);
+					} catch (IOException e) {
+						e.printStackTrace();
+					}
 					myAgent.send(reply);
 					step++;
 				}
@@ -160,27 +163,30 @@ public class LiftAgent extends Agent implements Drawable {
 				if (currentTask.getOriginFloor() == currentFloor) {
 					statistics.addWaitTime(sch.getCurrentTime() - currentTask.getCallTime());
 					// Send new request if not all people got in
-					if (currentTask.getNumAllPeople() > capacity) {
-						statistics.incrementCalls();
-						
+					if (currentTask.getNumAllPeople() > capacity) {	
 						System.out.println("Insufficient capacity for " + currentTask.oneLine() +  ", making new request");
 						if (currentTask.getNumPeople() > capacity)
 							currentTask.setNumPeople(currentTask.getNumPeople() - capacity);
 						else {
-							int newCapacity = capacity - currentTask.getNumPeople();
-							currentTask.removeNumPeople();
-							currentTask.setNumPeople(currentTask.getNumPeople() - newCapacity);
+							// everyone from the first call got on the lift, make new call for the rest
+							doneTask = currentTask;
+							doneTask.removeNumPeople();
+							doneTask.removeDestinationFloor();
 						}
 					}
 					else
 						currentTask.setNumPeople(0);
-					doneTask = currentTask;
+					if (doneTask == null)
+						doneTask = currentTask;
 				}
 			}
 			else if (currentTask.getDestinationFloor() == currentFloor) {
 				System.out.println(getID() + " answered " + currentTask.oneLine());
-				if (currentTask.getNumPeople() == 0 && currentTask.getDestinations().size() > 1)
+				if (currentTask.getNumPeople() == 0 && currentTask.getDestinations().size() > 1) {
 					currentTask.removeDestinationFloor();
+					if (currentTask.getNumPeopleSize() > 1)
+						currentTask.removeNumPeople();
+				}
 				else {
 					tasks.remove(0);
 					if (tasks.size() > 0) {
@@ -239,18 +245,19 @@ public class LiftAgent extends Agent implements Drawable {
 			G.drawImageToFit(stopped);
 			break;
 		case UPDOWN:
+			G.drawImageToFit(stopped);
 			break;
 		}
 	}
 	
 	public void move() {
 		if (state == Direction.UP && y >= 0) {
-			currentFloor++;
 			y--;
-		}	
-		else if (state == Direction.DOWN && y <= numFloors - 1) {
-			currentFloor--;
+			currentFloor++;
+		}
+		else if (state == Direction.DOWN && y < numFloors) {
 			y++;
+			currentFloor--;
 		}
 	}
 	
@@ -258,16 +265,18 @@ public class LiftAgent extends Agent implements Drawable {
 		boolean addToTask = false;
 		for (Task t : tasks) {
 			if (t.getOriginFloor() == task.getOriginFloor() && t.getDirection() == task.getDirection()) {
-				System.out.println(getID() + " joined tasks: " + t.oneLine() + " and " + task.oneLine());
-				addToTask = true;
-				if (t.getDestinationFloor() != task.getDestinationFloor()) {
-					t.addNumPeople(task.getNumPeople());
-					t.addDestinationFloor(task.getDestinationFloor());
-					t.incrementNumCalls();
+				if (t != currentTask || (t == currentTask && goingToOrigin)) {
+					System.out.println(getID() + " joined tasks: " + t.oneLine() + " and " + task.oneLine());
+					addToTask = true;
+					if (t.getDestinationFloor() != task.getDestinationFloor()) {
+						t.addNumPeople(task.getNumPeople());
+						t.addDestinationFloor(task.getDestinationFloor());
+						t.incrementNumCalls();
+					}
+					else
+						t.setNumPeople(t.getNumPeople() + task.getNumPeople());
+					break;	
 				}
-				else
-					t.setNumPeople(t.getNumPeople() + task.getNumPeople());
-				break;	
 			}
 		}
 		if (!addToTask)
@@ -279,7 +288,7 @@ public class LiftAgent extends Agent implements Drawable {
 		if (t.getOriginFloor() == 0)
 			destFloor = (int) Math.floor((numFloors + 1)/2);
 		else if (t.getDirection() == Direction.DOWN)
-			destFloor = (int) Math.floor(t.getOriginFloor()/2);
+			destFloor = 0;
 		else if (t.getDirection() == Direction.UP)
 			destFloor = (int) Math.floor(((numFloors + 1) - t.getOriginFloor())/2) + t.getOriginFloor();
 		return destFloor;
@@ -292,11 +301,11 @@ public class LiftAgent extends Agent implements Drawable {
 		for (Task t : tasks) {
 			if (t == currentTask && !goingToOrigin) {
 				int size = t.getDestinations().size() - 1;
-				destFloor = (int) t.getDestinations().get(size);
+				destFloor = t.getDestinations().get(size);
 				score += Math.abs(floor - destFloor) * velocity + size * STOPTIME;
 			}
 			else if (t.getOriginFloor() == task.getOriginFloor() && t.getDirection() == task.getDirection()) {
-				score += Math.abs(floor - t.getOriginFloor()) * velocity - 1;
+				score += Math.abs(floor - t.getOriginFloor()) * velocity + t.getNumCalls() * STOPTIME - 1;
 				addToTask = true;
 				break;
 			}
@@ -344,5 +353,21 @@ public class LiftAgent extends Agent implements Drawable {
 	
 	public void addSchedule(Schedule s) {
 		this.sch = s;
+	}
+	
+	public int getCapacity() {
+		return capacity;
+	}
+	
+	public void setCapacity(int capacity) {
+		this.capacity = capacity;
+	}
+	
+	public int getVelocity() {
+		return velocity;
+	}
+	
+	public void setVelocity(int velocity) {
+		this.velocity = velocity;
 	}
 }

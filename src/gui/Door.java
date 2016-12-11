@@ -9,10 +9,10 @@ import uchicago.src.sim.gui.Drawable;
 import uchicago.src.sim.gui.SimGraphics;
 
 public class Door implements Drawable{
-	private static final String IMGDEFAULT = "lift.png";
-	private static final String IMGALLEDUP = "liftUp.png";
-	private static final String IMGALLEDDOWN = "liftDown.png";
-	private static final String IMGALLEDUPDOWN = "liftUpDown.png";
+	private static final String IMGDEFAULT = "img/lift.png";
+	private static final String IMGALLEDUP = "img/liftUp.png";
+	private static final String IMGALLEDDOWN = "img/liftDown.png";
+	private static final String IMGALLEDUPDOWN = "img/liftUpDown.png";
 	
 	private int x;
 	private int y;
@@ -42,13 +42,13 @@ public class Door implements Drawable{
 		case UP:
 			if (!remove && state == Direction.DOWN)
 				this.state = Direction.UPDOWN;
-			else if (remove)
+			else if (remove && state == Direction.UP)
 				this.state = Direction.STOPPED;
 			break;
 		case DOWN:
 			if (!remove && state == Direction.UP)
 				this.state = Direction.UPDOWN;
-			else if (remove)
+			else if (remove && state == Direction.DOWN)
 				this.state = Direction.STOPPED;
 			break;
 		case UPDOWN:

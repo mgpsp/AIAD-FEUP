@@ -59,6 +59,10 @@ public class Task implements Serializable {
 		return destinationFloor;
 	}
 	
+	public int getNumPeopleSize() {
+		return numPeople.size();
+	}
+	
 	public void addDestinationFloor(int destinationFloor) {
 		this.destinationFloor.add(destinationFloor);
 		Collections.sort(this.destinationFloor);

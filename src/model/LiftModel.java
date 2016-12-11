@@ -28,11 +28,11 @@ import jade.wrapper.StaleProxyException;
 
 public class LiftModel extends Repast3Launcher {
 	private static final int NUMLIFTS = 4;
-	private static final int NUMFLOORS = 10;
-	private static final int CALLFREQUENCY = 100;
-	private static final int LIFTVELOCITY = 30;
-	private static final int MAXCAPACITY = 10;
-	private static final int STRATEGY = 1;
+	private static final int NUMFLOORS = 4;
+	private static final int CALLFREQUENCY = 70;
+	private static final int LIFTVELOCITY = 25;
+	private static final int MAXCAPACITY = 15;
+	private static final int STRATEGY = 3;
 	
 	private int numLifts = NUMLIFTS;
 	private int numFloors = NUMFLOORS;
@@ -112,6 +112,14 @@ public class LiftModel extends Repast3Launcher {
 	public void buildSchedule(){
 		System.out.println("Running BuildSchedule");
 		
+		class StopSim extends BasicAction {
+			@Override
+			public void execute() {
+				if (getSchedule().getCurrentTime() == 10000)
+					stopSimulation();
+			}
+		}
+		
 		class LiftMove extends BasicAction {
 			@Override
 			public void execute() {
@@ -135,6 +143,7 @@ public class LiftModel extends Repast3Launcher {
 		class CallLift extends BasicAction {
 			@Override
 			public void execute() {
+				statistics.incrementCalls();
 				Task task;
 				if (newCalls.size() > 0) {
 					task = newCalls.get(0);
@@ -154,6 +163,7 @@ public class LiftModel extends Repast3Launcher {
 		getSchedule().scheduleActionAtInterval(liftVelocity, new LiftMove());
 		getSchedule().scheduleActionAtInterval(1, displaySurf, "updateDisplay", Schedule.LAST);
 		getSchedule().scheduleActionAtInterval(callFrequency, new CallLift());
+		getSchedule().scheduleActionAtInterval(1, new StopSim());
 	}
 
 	public void buildDisplay(){
@@ -257,6 +267,12 @@ public class LiftModel extends Repast3Launcher {
 	}
 	
 	private void launchAgents() {
+		try {
+			mainContainer.acceptNewAgent("Building Agent", buildingAgent).start();
+		} catch (StaleProxyException e) {
+			e.printStackTrace();
+		}
+		
 		Random generator = new Random();
 		int max = 0;
 		for(int i = 0; i < numLifts; i++){
@@ -266,11 +282,6 @@ public class LiftModel extends Repast3Launcher {
 			addNewLift(i, capacity);
 		}
 		setMaxCapacity(max);
-		try {
-			mainContainer.acceptNewAgent("Building Agent", buildingAgent).start();
-		} catch (StaleProxyException e) {
-			e.printStackTrace();
-		}
 	}
 	
 	public static void main(String[] args) {
